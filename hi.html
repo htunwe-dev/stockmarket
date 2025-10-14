@@ -1,0 +1,530 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>HMA's Stock Market</title>
+  <meta name="description" content="Pro Investors are here!" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg:#0f1724;
+      --card:#0b1220;
+      --muted:#98a0b3;
+      --accent:#06b6d4;
+      --green:#10b981;
+      --red:#ef4444;
+      --glass:rgba(255,255,255,0.03);
+    }
+    *{box-sizing:border-box;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,'Helvetica Neue',Arial}
+    html,body{height:100%;margin:0;background:linear-gradient(180deg,#071021 0%, #081424 100%);color:#e6eef6}
+    .container{max-width:1100px;margin:36px auto;padding:20px}
+    header{display:flex;gap:16px;align-items:center;justify-content:space-between}
+    h1{margin:0;font-size:20px}
+    .subtitle{color:var(--muted);font-size:13px}
+    .card{background:linear-gradient(180deg,var(--card),rgba(11,18,32,0.6));border-radius:12px;padding:14px;box-shadow:0 6px 18px rgba(2,6,23,0.6)}
+    .controls{display:flex;gap:10px;align-items:center}
+    input.search{background:var(--glass);border:1px solid rgba(255,255,255,0.03);padding:8px 12px;border-radius:8px;color:inherit}
+    .layout{display:grid;grid-template-columns:1fr 360px;gap:16px;margin-top:16px}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:10px 8px;text-align:left;font-size:14px}
+    th{color:var(--muted);font-weight:600;font-size:12px}
+    tbody tr{border-top:1px solid rgba(255,255,255,0.02);cursor:pointer}
+    .ticker{font-weight:700}
+    .price{font-feature-settings:"tnum";font-variant-numeric:tabular-nums}
+    .positive{color:var(--green)}
+    .negative{color:var(--red)}
+    .portfolio{display:flex;flex-direction:column;gap:12px}
+    .portfolio .summary{display:flex;justify-content:space-between;align-items:center}
+    .small{font-size:13px;color:var(--muted)}
+    .chart-wrap{height:220px}
+    .btn-ghost{background:transparent;border:1px solid rgba(255,255,255,0.04);padding:6px 10px;border-radius:8px;color:var(--muted);cursor:pointer;transition:0.2s}
+    .btn-ghost:hover{border-color:var(--accent);color:var(--accent)}
+    button.btn{background:var(--accent);border:none;padding:8px 12px;border-radius:8px;color:#042027;font-weight:600;cursor:pointer}
+    footer{margin-top:20px;color:var(--muted);font-size:13px;text-align:center}
+    .modal-bg{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:100;backdrop-filter:blur(6px)}
+    .modal{background:var(--card);border-radius:12px;padding:20px;max-width:400px;width:90%;color:#fff;box-shadow:0 8px 20px rgba(0,0,0,0.4)}
+    .modal h2{margin-top:0;margin-bottom:10px}
+    .modal input{width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:var(--glass);color:#fff;margin-top:8px;margin-bottom:14px}
+    .modal .actions{display:flex;justify-content:flex-end;gap:8px}
+    @media(max-width:900px){.layout{grid-template-columns:1fr;}.portfolio{order:2}}
+
+    /* HOLDINGS spacing & clickable area */
+    .holding-item {
+      padding: 10px 12px;
+      margin: 8px 0;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.02);
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+      transition: transform .12s, background .12s;
+      cursor:pointer;
+    }
+    .holding-item:hover { transform: translateY(-4px); background: rgba(6,182,212,0.03); }
+
+    /* Right slide-in panel */
+    .side-panel {
+      position: fixed;
+      top: 0;
+      right: -420px; /* hidden by default */
+      width: 420px;
+      height: 100%;
+      background: linear-gradient(180deg,var(--card), rgba(11,18,32,0.8));
+      box-shadow: -8px 0 30px rgba(2,6,23,0.7);
+      z-index: 120;
+      padding: 18px;
+      transition: right 300ms cubic-bezier(.2,.9,.2,1);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .side-panel.open { right: 0; }
+    .side-panel .close-btn { align-self:flex-end; background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:18px;padding:6px }
+    .panel-header { display:flex;justify-content:space-between;align-items:center;gap:8px }
+    .panel-chart { flex: 1; min-height:160px; }
+    .panel-row { display:flex;justify-content:space-between;align-items:center }
+    .panel-actions { display:flex; gap:8px; align-items:center; }.panel input[type="number"] {
+  width: 120px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: linear-gradient(145deg, rgba(6,182,212,0.08), rgba(255,255,255,0.03));
+  color: #e6eef6;
+  font-size: 14px;
+  outline: none;
+  box-shadow: 0 0 6px rgba(6,182,212,0.15);
+  transition: all 0.25s ease;
+}
+.panel input[type="number"]:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 12px rgba(6,182,212,0.35);
+  background: linear-gradient(145deg, rgba(6,182,212,0.12), rgba(255,255,255,0.05));
+}
+
+#panelSellBtn {
+  background: linear-gradient(90deg, var(--accent), #3bf7ff);
+  color: #041923;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  box-shadow: 0 0 12px rgba(6,182,212,0.2);
+  transition: all 0.25s ease;
+}
+#panelSellBtn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 20px rgba(6,182,212,0.35);
+}
+.panel .profit {
+  font-weight: 700;
+  font-size: 15px;
+}
+
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <h1>HMA's Stock Market</h1>
+        <div class="subtitle">Pro Investors are here!</div>
+      </div>
+      <div class="controls">
+        <input class="search" id="search" placeholder="Search ticker or company (e.g. AAPL)" />
+      </div>
+    </header>
+
+    <div class="layout">
+      <div>
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+            <div style="display:flex;gap:14px;align-items:center">
+              <strong>Market Watch</strong>
+              <div class="small">Simulated live updates</div>
+            </div>
+            <div class="small" id="lastUpdated">Updated: --</div>
+          </div>
+
+          <div style="overflow:auto;max-height:480px">
+            <table id="stocksTable">
+              <thead>
+                <tr><th>Ticker</th><th>Company</th><th>Price</th><th>Profit/Loss</th><th>Chart</th></tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div style="height:14px"></div>
+
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <strong>Trade Log</strong>
+            <div class="small">Recent activity</div>
+          </div>
+          <div id="tradeLog" style="margin-top:10px;max-height:160px;overflow:auto;color:var(--muted);font-size:13px"></div>
+        </div>
+      </div>
+
+      <aside>
+        <div class="card portfolio">
+          <div class="summary">
+            <div>
+              <div class="small">Portfolio Value</div>
+              <div style="font-size:20px;font-weight:700" id="portfolioValue">$0.00</div>
+            </div>
+            <div>
+              <div class="small">Cash</div>
+              <div style="font-weight:700" id="cashBalance">$10000.00</div>
+            </div>
+          </div>
+
+          <div style="height:12px"></div>
+
+          <div class="chart-wrap card" style="padding:10px">
+            <canvas id="portfolioChart"></canvas>
+          </div>
+
+          <div style="height:6px"></div>
+
+          <div>
+            <div class="small">Holdings</div>
+            <div id="holdingsList" style="margin-top:8px;max-height:200px;overflow:auto"></div>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <footer class="small">This is a simulated demo — not financial advice.</footer>
+  </div>
+
+  <!-- Side panel for clicked holding -->
+  <aside id="sidePanel" class="side-panel" aria-hidden="true">
+    <button class="close-btn" id="panelClose">&times;</button>
+    <div class="panel-header">
+      <div>
+        <div id="panelTicker" style="font-weight:700;font-size:18px"></div>
+        <div id="panelCompany" class="small" style="margin-top:4px"></div>
+      </div>
+      <div style="text-align:right">
+        <div class="small">Cash</div>
+        <div id="panelCash" style="font-weight:700">$0.00</div>
+      </div>
+    </div>
+
+    <div class="panel-chart">
+      <canvas id="panelChart"></canvas>
+    </div>
+
+    <div class="panel-row">
+      <div>Price</div>
+      <div id="panelPrice" style="font-weight:700">$0.00</div>
+    </div>
+    <div class="panel-row">
+      <div>Your holdings</div>
+      <div id="panelHoldings" style="font-weight:700">0 sh</div>
+    </div>
+    <div class="panel-row">
+      <div>Profit / Loss</div>
+      <div id="panelPL" class="profit">$0.00</div>
+    </div>
+
+    <div class="panel-actions">
+      <input id="panelSellQty" type="number" min="1" value="1" />
+      <button id="panelSellBtn" class="btn-ghost">Sell</button>
+    </div>
+  </aside>
+
+  <template id="stockRowTemplate">
+    <tr>
+      <td class="ticker"></td>
+      <td class="company small"></td>
+      <td class="price"></td>
+      <td class="change"></td>
+      <td style="width:120px"><canvas class="miniChart" width="120" height="40"></canvas></td>
+    </tr>
+  </template>
+
+  <script>
+    const initialStocks=[
+      {ticker:'AAPL',company:'Apple Inc.',price:174.12},
+      {ticker:'MSFT',company:'Microsoft',price:341.75},
+      {ticker:'GOOGL',company:'Alphabet',price:132.55},
+      {ticker:'AMZN',company:'Amazon',price:134.28},
+      {ticker:'TSLA',company:'Tesla',price:254.13},
+      {ticker:'NVDA',company:'NVIDIA',price:675.23},
+      {ticker:'META',company:'Meta Platforms',price:282.50},
+      {ticker:'NFLX',company:'Netflix',price:384.11},
+      {ticker:'INTC',company:'Intel',price:30.12},
+      {ticker:'AMD',company:'AMD',price:120.66}
+    ];
+
+    const STORAGE_KEY='hma-stock-market';
+    const $=s=>document.querySelector(s);
+    const formatD=n=>n.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+    let state={stocks:[],portfolio:{},cash:10000,tradeLog:[],history:{}};
+
+    // ---- load/save ----
+    function loadState(){
+      const raw=localStorage.getItem(STORAGE_KEY);
+      if(raw) state=Object.assign(state,JSON.parse(raw));
+      else {
+        state.stocks=initialStocks.map(s=>({...s}));
+        state.stocks.forEach(s=>state.history[s.ticker]=Array.from({length:30},()=>s.price*(1+((Math.random()-0.5)/20))));
+      }
+    }
+    function saveState(){localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}
+
+    // ---- price helpers ----
+    function getPrice(t){ const s=state.stocks.find(x=>x.ticker===t); return s? s.price:0; }
+    function calcPortfolioValue(){ let total=state.cash; Object.entries(state.portfolio).forEach(([t,h])=> total += h.shares*getPrice(t)); return total; }
+
+    // ---- render market table ----
+    function renderStocks(filter=''){
+      const tbody=$('#stocksTable tbody'); tbody.innerHTML='';
+      state.stocks.forEach(stock=>{
+        if(filter){
+          const q=filter.trim().toLowerCase();
+          if(!stock.ticker.toLowerCase().includes(q) && !stock.company.toLowerCase().includes(q)) return;
+        }
+        const tr=document.querySelector('#stockRowTemplate').content.firstElementChild.cloneNode(true);
+        tr.querySelector('.ticker').textContent=stock.ticker;
+        tr.querySelector('.company').textContent=stock.company;
+        tr.querySelector('.price').textContent='$'+formatD(stock.price);
+
+        // Profit/Loss relative to previous tick
+        const hist=state.history[stock.ticker] || [];
+        const prev=hist[hist.length-2] || hist[hist.length-1] || stock.price;
+        const diff=+(stock.price - prev).toFixed(2);
+        const pct = prev ? (diff/prev)*100 : 0;
+        const ch=tr.querySelector('.change');
+        ch.textContent=(diff>=0?'+':'')+formatD(diff)+' ('+(pct>=0?'+':'')+pct.toFixed(2)+'%)';
+        ch.className='change '+(diff>=0?'positive':'negative');
+
+        // click row opens quick modal for buy (keep current behavior)
+        tr.addEventListener('click', (e)=>{
+          // Avoid triggering when user intended to select a button in the row (there are none now)
+          openStockModal(stock);
+        });
+
+        // mini sparkline
+        const canvas=tr.querySelector('.miniChart'); const ctx=canvas.getContext('2d');
+        const arr=state.history[stock.ticker] || [stock.price];
+        const w=canvas.width, h=canvas.height; const min=Math.min(...arr), max=Math.max(...arr);
+        ctx.clearRect(0,0,w,h); ctx.beginPath();
+        arr.forEach((v,i)=>{ const x=(i/(arr.length-1))*w; const y=h-((v-min)/(max-min||1))*h; if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y); });
+        ctx.lineWidth=1.6; ctx.strokeStyle=(diff>=0? '#10b981':'#ef4444'); ctx.stroke();
+
+        tbody.appendChild(tr);
+      });
+    }
+
+    // ---- holdings / portfolio rendering ----
+    function renderPortfolio(){
+      $('#cashBalance').textContent = '$' + formatD(state.cash);
+      $('#portfolioValue').textContent = '$' + formatD(calcPortfolioValue());
+      const container = $('#holdingsList'); container.innerHTML = '';
+      const keys = Object.keys(state.portfolio);
+      if(!keys.length){ container.innerHTML = '<div class="small">No holdings yet</div>'; return; }
+
+      keys.forEach(tkr=>{
+        const h = state.portfolio[tkr];
+        const price = getPrice(tkr);
+        const total = h.shares * price;
+        const pct = h.avgPrice ? ((price - h.avgPrice) / h.avgPrice * 100) : 0;
+        const item = document.createElement('div');
+        item.className = 'holding-item';
+        item.innerHTML = `
+          <div style="min-width:0;">
+            <div style="font-weight:700">${tkr} · ${h.shares} sh</div>
+            <div class="small">avg $${formatD(h.avgPrice)}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-weight:700">$${formatD(total)}</div>
+            <div class="${pct>=0?'positive':'negative'} small">${(pct>=0?'+':'')}${pct.toFixed(2)}%</div>
+          </div>
+        `;
+        // click opens side panel
+        item.addEventListener('click', ()=> openSidePanel(tkr));
+        container.appendChild(item);
+      });
+    }
+
+    // ---- trade log ----
+    function renderTradeLog(){
+      const el=$('#tradeLog');
+      el.innerHTML = state.tradeLog.map(t=>`<div style='padding:6px 0;border-bottom:1px dashed rgba(255,255,255,0.02)'>${t}</div>`).join('');
+    }
+
+    // ---- market modal for buy (kept for clicking market rows) ----
+    function openStockModal(stock){
+      const div=document.createElement('div'); div.className='modal-bg';
+      div.innerHTML = `<div class='modal'><h2>${stock.ticker} — ${stock.company}</h2>
+        <p>Price: $${formatD(stock.price)}</p>
+        <label>Shares:</label><input id='qty' type='number' min='1' value='1'/>
+        <div class='actions'>
+          <button class='btn-ghost' id='closeBtn'>Close</button>
+          <button class='btn' id='buyBtn'>Buy</button>
+        </div></div>`;
+      document.body.appendChild(div);
+      div.querySelector('#closeBtn').onclick = ()=> div.remove();
+      div.querySelector('#buyBtn').onclick = ()=>{
+        const q = parseInt(div.querySelector('#qty').value);
+        if(!q || q<=0) return;
+        buyStock(stock,q);
+        div.remove();
+      };
+    }
+
+    // ---- buy / sell functions ----
+    function buyStock(stock, qty){
+      qty = Number(qty) || 0;
+      if(qty<=0) return;
+      const cost = qty * stock.price;
+      if(cost > state.cash){ alert('Not enough cash'); return; }
+      state.cash -= cost;
+      if(!state.portfolio[stock.ticker]) state.portfolio[stock.ticker] = { shares:0, avgPrice:0 };
+      const p = state.portfolio[stock.ticker];
+      p.avgPrice = ((p.avgPrice * p.shares) + cost) / (p.shares + qty);
+      p.shares += qty;
+      state.tradeLog.unshift(`${new Date().toLocaleTimeString()} Bought ${qty} ${stock.ticker} @ $${formatD(stock.price)}`);
+      if(state.tradeLog.length>50) state.tradeLog.pop();
+      saveState(); renderAll();
+    }
+
+    function sellStock(tkr, qty){
+      qty = Number(qty) || 0;
+      const p = state.portfolio[tkr];
+      if(!p || p.shares < qty){ alert('Not enough shares'); return; }
+      const price = getPrice(tkr);
+      const val = qty * price;
+      p.shares -= qty;
+      state.cash += val;
+      state.tradeLog.unshift(`${new Date().toLocaleTimeString()} Sold ${qty} ${tkr} @ $${formatD(price)}`);
+      if(p.shares <= 0) delete state.portfolio[tkr];
+      saveState(); renderAll();
+    }
+
+    // ---- side panel logic ----
+    const panel = $('#sidePanel');
+    let panelChart = null;
+    let panelTicker = null;
+    function openSidePanel(tkr){
+      const stock = state.stocks.find(s=>s.ticker===tkr);
+      if(!stock) return;
+      panelTicker = tkr;
+      panel.classList.add('open'); panel.setAttribute('aria-hidden','false');
+
+      // fill header
+      $('#panelTicker').textContent = stock.ticker;
+      $('#panelCompany').textContent = stock.company;
+      $('#panelPrice').textContent = '$' + formatD(stock.price);
+      $('#panelCash').textContent = '$' + formatD(state.cash);
+      const holdings = state.portfolio[tkr]?.shares || 0;
+      $('#panelHoldings').textContent = holdings + ' sh';
+
+      // profit/loss compute
+      const avg = state.portfolio[tkr]?.avgPrice || 0;
+      const pl = holdings ? ( (stock.price - avg) * holdings ) : 0;
+      const plEl = $('#panelPL');
+      plEl.textContent = (pl>=0?'+':'') + '$' + formatD(pl);
+      plEl.className = 'profit ' + (pl>=0 ? 'positive' : 'negative');
+
+      // qty input default: 1
+      $('#panelSellQty').value = Math.min(holdings || 1, 1);
+
+      // setup chart (destroy previous)
+      if(panelChart) { panelChart.destroy(); panelChart = null; }
+      const ctx = document.getElementById('panelChart').getContext('2d');
+      const hist = state.history[tkr] ? state.history[tkr].slice() : [stock.price];
+      panelChart = new Chart(ctx, {
+        type: 'line',
+        data: { labels: hist.map((_,i)=>i), datasets:[{ data: hist, borderColor: '#06b6d4', backgroundColor: 'rgba(6,182,212,0.06)', tension: 0.25, fill: true }]},
+        options: { plugins:{legend:{display:false}}, scales:{x:{display:false}} }
+      });
+
+      // sell button handler
+      $('#panelSellBtn').onclick = ()=>{
+        const qty = Number($('#panelSellQty').value) || 0;
+        if(qty<=0) return alert('Enter amount to sell');
+        if(!state.portfolio[tkr] || state.portfolio[tkr].shares < qty) return alert('Not enough shares');
+        sellStock(tkr, qty);
+        // update panel after selling
+        updatePanelLive();
+      };
+
+      // close button
+      $('#panelClose').onclick = ()=> closeSidePanel();
+      // update live immediately
+      updatePanelLive();
+    }
+
+    function closeSidePanel(){
+      panel.classList.remove('open'); panel.setAttribute('aria-hidden','true');
+      if(panelChart){ panelChart.destroy(); panelChart = null; }
+      panelTicker = null;
+    }
+
+    // update side panel with latest price/PL/chart point - called on every tick
+    function updatePanelLive(){
+      if(!panelTicker) return;
+      const tkr = panelTicker;
+      const stock = state.stocks.find(s=>s.ticker===tkr);
+      if(!stock) return;
+      $('#panelPrice').textContent = '$' + formatD(stock.price);
+      $('#panelCash').textContent = '$' + formatD(state.cash);
+      const holdings = state.portfolio[tkr]?.shares || 0;
+      $('#panelHoldings').textContent = holdings + ' sh';
+      const avg = state.portfolio[tkr]?.avgPrice || 0;
+      const pl = holdings ? ((stock.price - avg) * holdings) : 0;
+      const plEl = $('#panelPL');
+      plEl.textContent = (pl>=0?'+':'') + '$' + formatD(pl);
+      plEl.className = 'profit ' + (pl>=0 ? 'positive' : 'negative');
+
+      // push new data point into chart
+      if(panelChart){
+        const hist = state.history[tkr] || [];
+        panelChart.data.labels = hist.map((_,i)=>i);
+        panelChart.data.datasets[0].data = hist.slice();
+        panelChart.update('none');
+      }
+    }
+
+    // ---- simulation tick ----
+    function tick(){
+      state.stocks.forEach(s=>{
+        const h = state.history[s.ticker];
+        const vol = (Math.random() < 0.02 ? 0.08 : 0.006);
+        const cf = 1 + (Math.random()*2 - 1) * vol;
+        s.price = Math.max(0.01, + (s.price * cf).toFixed(2));
+        h.push(s.price); if(h.length>60) h.shift();
+      });
+      saveState();
+      renderAll();
+      // update panel live if open
+      updatePanelLive();
+      $('#lastUpdated').textContent = 'Updated: ' + new Date().toLocaleTimeString();
+    }
+
+    function renderAll(){
+      renderStocks($('#search').value);
+      renderPortfolio();
+      renderTradeLog();
+    }
+
+    // ---- initialization ----
+    loadState();
+    renderAll();
+    tick();
+    setInterval(tick, 2000);
+    $('#search').addEventListener('input', e => renderStocks(e.target.value));
+    // close panel on outside click (optional)
+    document.addEventListener('keydown', e => { if(e.key==='Escape') closeSidePanel(); });
+  </script>
+</body>
+</html>
